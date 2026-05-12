@@ -5,24 +5,42 @@ import os
 app = Flask(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-CHAT_ID = os.environ.get("CHAT_ID")
+CHAT_IDS = os.environ.get("CHAT_IDS", "")
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    data = request.json
+    data = request.json or {}
 
     message = data.get("message", "TradingView Alert")
 
     telegram_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": message
-    }
+    chat_ids = [chat_id.strip() for chat_id in CHAT_IDS.split(",") if chat_id.strip()]
 
-    requests.post(telegram_url, json=payload)
+    if not chat_ids:
+        return {"status": "error", "message": "No CHAT_IDS configured"}, 500
 
-    return "OK", 200
+    results = []
+
+    for chat_id in chat_ids:
+        payload = {
+            "chat_id": chat_id,
+            "text": message
+        }
+
+        response = requests.post(telegram_url, json=payload)
+
+        results.append({
+            "chat_id": chat_id,
+            "status_code": response.status_code,
+            "response": response.text
+        })
+
+    return {
+        "status": "ok",
+        "sent_to": len(chat_ids),
+        "results": results
+    }, 200
 
 @app.route('/')
 def home():
